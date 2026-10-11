@@ -1,0 +1,37 @@
+Mentor (study-center)
+Copyright 2026 Roman Kozyrev
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It adapts ideas, and in places paraphrased structure, from the following open-source
+projects. No code or prompt text was copied verbatim unless noted.
+
+- HKUDS/DeepTutor (Apache-2.0), https://github.com/HKUDS/DeepTutor
+  Engine-decided mastery gate, quiz-ends-the-turn protocol, defer/repair escape hatches,
+  intake protocol, typed knowledge points (memory/procedure/concept/design), the
+  retention-scheduler protocol, the rule that same-session practice is not a durable
+  retrieval, and treating resource text as evidence rather than instructions.
+- mattpocock/skills, "teach" skill (MIT, Copyright 2026 Matt Pocock),
+  https://github.com/mattpocock/skills
+  File-based learner workspace (MISSION / RESOURCES / learning records / lessons / reference /
+  NOTES) and its format conventions; "never trust parametric knowledge"; quiz-option hygiene.
+- GeminiLight/gen-mentor, GenMentor (CC0-1.0), https://github.com/GeminiLight/gen-mentor
+  Goal -> skill gap -> learner profile -> learning-path decomposition.
+- stanford-oval/storm (MIT), https://github.com/stanford-oval/storm
+  Persona-driven research: perspectives -> grounded questions -> outline.
+- THU-MAIC/OpenMAIC (MIT), https://github.com/THU-MAIC/OpenMAIC
+  Language-inference rules for teaching language and terminology.
+- dair-ai/dair-academy-plugins lesson-generator skill (MIT), via sickn33/agentic-awesome-skills
+  Self-contained HTML lesson approach and smoke-test checklist.
+- CAHLR/OATutor (MIT code), https://github.com/CAHLR/OATutor
+  Bayesian Knowledge Tracing update (re-implemented).
+- Math Academy / Justin Skycak's public writing on hierarchical spaced repetition
+  ("Fractional Implicit Repetition"): the idea of implicit review credit. Our own implementation and parameters.
+
+Ideas only (no text or code used): Mr. Ranedeer AI Tutor (unlicensed), plastic-labs/tutor-gpt
+(GPL-3.0), Anthropic's learning-output-style plugin (all rights reserved).
+
+Runtime dependencies keep their own licenses: fsrs (MIT), networkx (BSD-3), PyYAML (MIT),
+mcp (MIT), markdown-it-py and mdit-py-plugins (MIT), Jinja2 (BSD-3), SymPy (BSD-3),
+genanki (MIT). Lesson pages load KaTeX (MIT), Mermaid (MIT), D3 (ISC), Observable Plot (ISC)
+and JSXGraph (LGPL-3.0/MIT) from a CDN; they are not redistributed here.

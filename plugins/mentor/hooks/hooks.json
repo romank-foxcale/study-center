@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": ["run", "--quiet", "--no-project", "${CLAUDE_PLUGIN_ROOT}/scripts/session_start.py",
+                     "--plugin-data", "${CLAUDE_PLUGIN_DATA}"],
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

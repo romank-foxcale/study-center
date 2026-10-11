@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "core": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--directory", "${CLAUDE_PLUGIN_ROOT}/core", "--frozen", "mentor-mcp"],
+      "env": {
+        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv",
+        "MENTOR_WORKSPACE": "${user_config.workspace_dir}",
+        "MENTOR_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
+      }
+    }
+  }
+}
