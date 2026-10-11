@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+{% if 'math' in used %}<link rel="stylesheet" href="{{ cdn.katex_css }}">{% endif %}
+{% if 'jsxgraph' in used %}<link rel="stylesheet" href="{{ cdn.jsxgraph_css }}">{% endif %}
+<style>
+:root{--bg:#fffff8;--fg:#1b1b1b;--muted:#6b6b6b;--accent:#a3330b;--card:#f4f1e8;--border:#ddd6c3}
+@media (prefers-color-scheme: dark){:root{--bg:#151515;--fg:#e8e6e1;--muted:#9a978f;--accent:#f0a070;--card:#202020;--border:#3a3a3a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.6 Georgia,"Iowan Old Style","Palatino Linotype",serif}
+main{max-width:46rem;margin:0 auto;padding:2.5rem 1rem 4rem}
+header .sub{color:var(--muted);font-style:italic;margin-top:-.6rem}
+h1{font-weight:400;font-size:2.1rem;line-height:1.2}
+h2{font-weight:400;font-style:italic;margin-top:2.4rem;border-bottom:1px solid var(--border)}
+h3{font-weight:600;font-size:1.05rem}
+a{color:var(--accent)}
+code,pre{font-family:ui-monospace,Consolas,monospace;font-size:.85em}
+pre{background:var(--card);padding:.8rem 1rem;border-radius:6px;overflow-x:auto}
+blockquote{margin:1rem 0;padding:.2rem 1rem;border-left:3px solid var(--accent);color:var(--muted)}
+table{border-collapse:collapse;margin:1rem 0;width:100%}
+th,td{border-bottom:1px solid var(--border);padding:.3rem .5rem;text-align:left}
+.math-display{overflow-x:auto;margin:1rem 0}
+pre.mermaid{background:transparent;text-align:center}
+figure.plot{margin:1.2rem 0;overflow-x:auto}
+.jxgbox{width:100%;max-width:520px;aspect-ratio:1;margin:1rem auto;border-radius:6px}
+.quiz{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.2rem;margin:1.6rem 0}
+.quiz details{margin:.4rem 0 1rem}.quiz summary{cursor:pointer;color:var(--accent)}
+.render-error{color:#c62828;font-family:monospace}
+nav.lesson-nav{display:flex;justify-content:space-between;gap:1rem;margin-top:3rem;font-size:.95rem}
+footer.sources{margin-top:3rem;font-size:.85rem;color:var(--muted)}
+footer.sources li{margin:.3rem 0}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>{{ title }}</h1>
+  {% if subtitle %}<p class="sub">{{ subtitle }}</p>{% endif %}
+</header>
+<article>
+{{ body | safe }}
+</article>
+{% if sources %}
+<footer class="sources">
+  <h2>Sources</h2>
+  <ol>
+  {% for s in sources %}
+    <li id="src-{{ s.id or loop.index }}">{% if s.url %}<a href="{{ s.url }}">{{ s.title or s.url }}</a>{% else %}{{ s.title }}{% endif %}{% if s.license %} &middot; {{ s.license }}{% endif %}{% if s.quote %}<br><q>{{ s.quote }}</q>{% endif %}</li>
+  {% endfor %}
+  </ol>
+</footer>
+{% endif %}
+{% if nav %}
+<nav class="lesson-nav">
+  <span>{% if nav.prev %}<a href="{{ nav.prev }}">&larr; Previous</a>{% endif %}</span>
+  <span>{% if nav.map %}<a href="{{ nav.map }}">Course map</a>{% endif %}</span>
+  <span>{% if nav.next %}<a href="{{ nav.next }}">Next &rarr;</a>{% endif %}</span>
+</nav>
+{% endif %}
+</main>
+{% if 'math' in used %}
+<script defer src="{{ cdn.katex_js }}"></script>
+<script defer src="{{ cdn.katex_auto }}" onload="renderMathInElement(document.body,{delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],throwOnError:false})"></script>
+{% endif %}
+{% if 'mermaid' in used %}
+<script src="{{ cdn.mermaid }}"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script>
+{% endif %}
+{% if 'plot' in used %}
+<script src="{{ cdn.d3 }}"></script>
+<script src="{{ cdn.plot }}"></script>
+<script>
+document.querySelectorAll('figure.plot').forEach(function(el){
+  try{
+    var spec=JSON.parse(el.dataset.spec), marks=[];
+    (spec.marks||[]).forEach(function(m){
+      var data=m.data||[];
+      if(m.fn){var f=new Function('x','return ('+m.fn+');'),d=m.domain||[-5,5],n=m.samples||200;
+        data=[];for(var i=0;i<=n;i++){var x=d[0]+(d[1]-d[0])*i/n;data.push({x:x,y:f(x)});}
+        m.options=Object.assign({x:'x',y:'y'},m.options||{});}
+      marks.push(Plot[m.type||'line'](data,m.options||{}));
+    });
+    if(spec.grid!==false)marks.unshift(Plot.gridY(),Plot.gridX());
+    el.appendChild(Plot.plot(Object.assign({width:Math.min(640,el.clientWidth||640),marks:marks},spec.plot||{})));
+    if(spec.caption){var c=document.createElement('figcaption');c.textContent=spec.caption;el.appendChild(c);}
+  }catch(e){el.textContent='plot error: '+e.message;}
+});
+</script>
+{% endif %}
+{% if 'jsxgraph' in used %}<script src="{{ cdn.jsxgraph_js }}"></script>{% endif %}
+</body>
+</html>

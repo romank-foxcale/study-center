@@ -1,0 +1,17 @@
+{
+  "name": "mentor",
+  "version": "0.1.0",
+  "description": "Teach-me-anything tutor: research, knowledge graph, adaptive diagnostic, lessons with the why, engine-decided mastery and spaced review.",
+  "author": { "name": "Roman Kozyrev" },
+  "repository": "https://github.com/romank-foxcale/study-center",
+  "license": "Apache-2.0",
+  "keywords": ["learning", "tutor", "spaced-repetition", "education"],
+  "userConfig": {
+    "workspace_dir": {
+      "type": "directory",
+      "title": "Learning workspace folder",
+      "description": "Where your courses, lessons and progress database live. Survives plugin uninstall. Leave empty for ~/Mentor.",
+      "required": false
+    }
+  }
+}

@@ -1,0 +1,74 @@
+version: 1
+goal: "Understand enough linear algebra to follow PCA"
+capabilities:
+  - id: cap.pca
+    statement: "Explain PCA as projecting data onto covariance eigenvectors"
+    evidence: "Derive the first principal component of a 2D toy dataset"
+nodes:
+  - id: vec.basics
+    title: "Vectors as arrows and lists"
+    type: concept
+    tier: prereq
+    objective: "Represent vectors geometrically and as coordinate lists"
+    bloom: understand
+    minutes: 15
+    misconceptions: ["a vector is just a point"]
+  - id: vec.dot
+    title: "Dot product"
+    type: concept
+    tier: core
+    objective: "Compute dot products and interpret them as projection"
+    bloom: apply
+    minutes: 20
+    misconceptions: ["the dot product is a vector"]
+  - id: mat.basics
+    title: "Matrices as linear maps"
+    type: concept
+    tier: core
+    objective: "Interpret a matrix as a transformation of space"
+    bloom: understand
+    minutes: 25
+    misconceptions: ["a matrix is just a table of numbers"]
+  - id: mat.mult
+    title: "Matrix multiplication"
+    type: procedure
+    tier: core
+    objective: "Multiply matrices and explain it as composition"
+    bloom: apply
+    minutes: 25
+    misconceptions: ["matrix multiplication is commutative"]
+  - id: eig.def
+    title: "Eigenvectors and eigenvalues"
+    type: concept
+    tier: core
+    objective: "Find eigenpairs of 2x2 matrices and explain what they mean"
+    bloom: apply
+    minutes: 30
+    misconceptions: ["every matrix has real eigenvalues"]
+  - id: stats.cov
+    title: "Covariance matrix"
+    type: procedure
+    tier: prereq
+    objective: "Compute a covariance matrix for 2D data"
+    bloom: apply
+    minutes: 20
+    misconceptions: ["covariance measures causation"]
+  - id: pca.core
+    title: "Principal component analysis"
+    type: concept
+    tier: core
+    objective: "Derive PCA as eigen-decomposition of the covariance matrix"
+    bloom: analyze
+    minutes: 35
+    serves: [cap.pca]
+    misconceptions: ["PCA picks the axes with the least variance"]
+edges:
+  - { kind: prereq, from: vec.basics, to: vec.dot }
+  - { kind: prereq, from: vec.basics, to: mat.basics }
+  - { kind: prereq, from: vec.dot, to: mat.mult }
+  - { kind: prereq, from: mat.basics, to: mat.mult }
+  - { kind: prereq, from: mat.mult, to: eig.def }
+  - { kind: prereq, from: eig.def, to: pca.core }
+  - { kind: prereq, from: stats.cov, to: pca.core }
+  - { kind: encompasses, from: mat.mult, to: vec.dot, weight: 0.7 }
+  - { kind: encompasses, from: pca.core, to: stats.cov, weight: 0.4 }

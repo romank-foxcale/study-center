@@ -1,0 +1,12 @@
+{
+  "name": "study-center",
+  "owner": { "name": "Roman Kozyrev" },
+  "metadata": { "description": "Mentor: a teach-me-anything tutor plugin for Claude Code" },
+  "plugins": [
+    {
+      "name": "mentor",
+      "source": "./plugins/mentor",
+      "description": "Research, knowledge graph, diagnostic, lessons with the why, mastery and spaced review."
+    }
+  ]
+}
