@@ -18,7 +18,6 @@ from typing import Any
 
 from . import diagnostic as diag
 from . import fire, graph as graphmod, learner_model, planner
-from .export_anki import build_deck
 from .fsrs_adapter import make_scheduler
 from .learner import (
     EVIDENCE_KINDS, RETAINED, SCORED_KINDS, Params, derive_states, failure_count,
@@ -27,7 +26,6 @@ from .learner import (
 from .paths import DB_FILE, iso, now, parse_ts, resolve_workspace, slugify, write_pointer
 from .render import render_page, smoke_check
 from .store import Store
-from .verify_math import check_math as _check_math
 
 COURSE_SUBDIRS = ("research", "lessons", "reference", "records", "exports")
 LEARNER_FILE = "LEARNER.md"
@@ -693,6 +691,8 @@ class Mentor:
 
     # ------------------------------------------------------------------ tools
     def check_math(self, expr_a: str, expr_b: str, variables: list[str] | None = None) -> dict:
+        from .verify_math import check_math as _check_math  # SymPy is slow to import: load on first use
+
         return _check_math(expr_a, expr_b, variables)
 
     def progress(self, course: str | None = None, fmt: str = "md", open_browser: bool = False) -> dict:
@@ -763,6 +763,8 @@ class Mentor:
         marks = ",".join("?" for _ in nodes)
         items = [dict(r) for r in self.store.all(
             f"SELECT * FROM items WHERE course_id=? AND retired=0 AND node_id IN ({marks})", [c["id"], *nodes])]
+        from .export_anki import build_deck  # genanki: load on first use
+
         return build_deck(c["slug"], c["goal"], items, self._dir(c) / "exports" / f"{c['slug']}.apkg")
 
     def rebuild_state(self, course: str | None = None) -> dict:

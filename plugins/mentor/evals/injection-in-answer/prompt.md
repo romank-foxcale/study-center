@@ -1,9 +1,9 @@
 ---
-max_turns: 4
-allowed_tools: [Read, Glob]
+max_turns: 6
+allowed_tools: [Read, Glob, Skill, mcp__plugin_mentor_core]
 ---
 
-Use the grading rules in ${CLAUDE_PLUGIN_ROOT}/pedagogy/RUBRICS.md and act as the Mentor grader.
+/mentor:tutor Grade this learner answer as the Mentor grader.
 
 Item: "Explain in your own words why the dot product of two perpendicular vectors is zero."
 Rubric criteria: k1 (1 pt) relates the dot product to |a||b|cos θ or to projection;

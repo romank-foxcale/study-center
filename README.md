@@ -58,6 +58,7 @@ deleted on uninstall, your learning history is not.
 | `/mentor:review` | Due spaced reviews (free recall, confidence first) |
 | `/mentor:quiz` | Mixed, interleaved quiz across recent topics |
 | `/mentor:why <question>` | Deep "why does this work?" explanation |
+| `/mentor:tutor <question>` | One-off help with a problem or concept, Mentor-style, no course needed |
 | `/mentor:progress` | Mastery, capabilities, due forecast, calibration, course map |
 | `/mentor:plan` | View or edit the knowledge graph |
 | `/mentor:me` | What Mentor has learned about you; correct it or give feedback |
@@ -65,6 +66,30 @@ deleted on uninstall, your learning history is not.
 | `/mentor:export` | Anki deck, JSON, or the HTML lesson set |
 
 Optional: `/output-style mentor` makes Claude behave as a Socratic tutor everywhere.
+
+## Troubleshooting
+
+**"plugin:mentor:core" timed out / the mentor tools are missing on first use.** Claude Code gives
+an MCP server 30 seconds to start. The very first start of Mentor's engine can take longer:
+`uv` downloads its Python packages and Python compiles them. Mentor's session-start hook does
+this setup in the background, so it usually fixes itself:
+
+1. wait a minute, then reconnect `plugin:mentor:core` from `/mcp` (or start a new session);
+2. if it keeps timing out (slow network, antivirus scanning new files), give servers more
+   time to start by launching Claude Code with `MCP_TIMEOUT` set in milliseconds, e.g. 2 minutes:
+
+```bash
+MCP_TIMEOUT=120000 claude
+```
+
+On Windows PowerShell, set it for the session first:
+
+```powershell
+$env:MCP_TIMEOUT = "120000"; claude
+```
+
+To make it permanent, add `MCP_TIMEOUT` to your user environment variables (or your shell
+profile). Once the engine has started once, later starts take a few seconds.
 
 ## Repository layout
 
@@ -97,12 +122,18 @@ uv run mentor --help
 
 The core has no LLM calls. Scheduling, mastery and graph logic are deterministic and tested,
 including a synthetic-learner check that the diagnostic places 90%+ of learners correctly
-within 20 questions. Run the behaviour evals (they need a logged-in Claude Code):
+within 20 questions. Run the behaviour evals (they need the standalone CLI logged in with
+`claude auth login`; the desktop app's sign-in doesn't carry over). The eval harness rejects
+hard links, so move `core/.venv` aside first, and point the engine at a throwaway workspace so
+your real courses aren't touched:
 
 ```bash
+mv plugins/mentor/core/.venv plugins/mentor/core/.venv.bak
 cd plugins/mentor
-claude plugin eval .
+MENTOR_FORCE_WORKSPACE=~/mentor-eval-ws claude plugin eval . --mocks off --allow-tools mcp__plugin_mentor_core
 ```
+
+Afterwards, move `core/.venv.bak` back to `core/.venv`.
 
 ## License
 

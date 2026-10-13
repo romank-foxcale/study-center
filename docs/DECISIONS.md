@@ -43,8 +43,6 @@ Verified against code.claude.com docs and the local CLI:
 ## Known gaps / next steps
 - A live headless `claude -p --plugin-dir` smoke test was blocked (CLI OAuth session
   expired). The MCP server is verified end to end over stdio by `tests/test_mcp_stdio.py`.
-- Whether `${CLAUDE_PLUGIN_ROOT}` substitutes inside eval `prompt.md` is unverified. If not,
-  change those prompts to relative paths.
 - Phase 6 simulated-learner harness (`evals/`) is scaffolded; calibration labels still to collect.
 - Phase 7 extras (Manim visualizer, marimo lessons, AnkiConnect, provider-agnostic `mentor chat`)
   are not started.
@@ -68,3 +66,14 @@ Verified against code.claude.com docs and the local CLI:
 
 Not done yet: tuning the thresholds (0.65 / 0.35 / 1.5) and outcome weight against simulated
 learners (`evals/scenarios.yaml` has a `la-feedback-loop` scenario to start from).
+
+## 2026-10-13: First real `claude plugin eval` run (Claude Code 2.1.293)
+
+| Finding | Consequence |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}` is **not** substituted in eval `prompt.md`; runs work in an empty temp folder, so plugin files are unreachable by path (probe case confirmed) | Behaviour cases go through the new `/mentor:tutor` skill, whose body *is* substituted and loads the pedagogy files |
+| Eval grader `type: tool_used` takes `tool:`, not `tool_used:` | Fixed in `learn-intake` and `feedback-capture` |
+| The harness rejects a plugin folder containing hard links; `core/.venv` (built by uv from its cache) has thousands | Run evals on a copy without `core/.venv`, or move it aside first |
+| The MCP server must start within 30 s. A cold first start took 45 s, mostly importing SymPy | SymPy (`check_math`) and genanki (`export_anki`) are imported on first use; a fresh-environment start now takes about 5 s |
+| Eval runs need the standalone CLI logged in (`claude auth login`); the desktop app's sign-in doesn't carry over | Documented in the eval instructions |
+| A plugin can't raise the 30 s MCP startup limit (only the user's `MCP_TIMEOUT`, in ms), and stdio servers aren't retried. A start with an empty uv cache takes ~18 s alone, more on slow networks or with parallel starts | The SessionStart hook starts a detached warm-up (`uv sync` + one import of the server, same environment as `.mcp.json`) and records the uv.lock hash in `<plugin data>/warm.json`, so it runs once per dependency change. On the first warm-up it tells Claude to suggest reconnecting via `/mcp`, and `MCP_TIMEOUT` if needed (README, Troubleshooting) |
