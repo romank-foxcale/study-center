@@ -64,8 +64,7 @@ Verified against code.claude.com docs and the local CLI:
 | `explorable_save` validates bespoke pages (pinned allowlisted CDNs, no network calls, balanced markup, `<title>`, ≤ 2 MB) | Generated JavaScript runs in the learner's browser; keep it self-contained and reviewable. |
 | `/mentor:me` shows and corrects the model; `learner_reset` voids everything | Open learner model: the learner sees everything inferred about them and can correct it. |
 
-Not done yet: tuning the thresholds (0.65 / 0.35 / 1.5) and outcome weight against simulated
-learners (`evals/scenarios.yaml` has a `la-feedback-loop` scenario to start from).
+Thresholds were tuned on 2026-10-13 (see below).
 
 ## 2026-10-13: First real `claude plugin eval` run (Claude Code 2.1.293)
 
@@ -77,3 +76,40 @@ learners (`evals/scenarios.yaml` has a `la-feedback-loop` scenario to start from
 | The MCP server must start within 30 s. A cold first start took 45 s, mostly importing SymPy | SymPy (`check_math`) and genanki (`export_anki`) are imported on first use; a fresh-environment start now takes about 5 s |
 | Eval runs need the standalone CLI logged in (`claude auth login`); the desktop app's sign-in doesn't carry over | Documented in the eval instructions |
 | A plugin can't raise the 30 s MCP startup limit (only the user's `MCP_TIMEOUT`, in ms), and stdio servers aren't retried. A start with an empty uv cache takes ~18 s alone, more on slow networks or with parallel starts | The SessionStart hook starts a detached warm-up (`uv sync` + one import of the server, same environment as `.mcp.json`) and records the uv.lock hash in `<plugin data>/warm.json`, so it runs once per dependency change. On the first warm-up it tells Claude to suggest reconnecting via `/mcp`, and `MCP_TIMEOUT` if needed (README, Troubleshooting) |
+
+## 2026-10-13: Learner-model calibration on simulated learners
+
+There is no labelled data on real learners, so `learner_model_sim.py` simulates them. Each
+synthetic learner has a hidden *effect* per angle (helps / neutral / hurts) and a *taste* that
+usually, but not always, matches it. A lesson loop emits the signals Mentor records: baseline-relative
+outcomes with item-difficulty noise, spontaneous reactions with occasional misreports, the
+end-of-lesson question, an intake statement, and the alternate angle when stuck. It runs at
+three noise levels (the noise values are assumptions) and in open loop (random angles) and
+closed loop (the tutor follows the model). 150 learners × 30 lessons per configuration;
+deterministic.
+
+Metrics: *harmful errors* ("works" on an angle that hurts, or "avoid" on one that helps, with
+no conflict flagged), *precision*, and *coverage* (share of real effects with a correct verdict).
+
+| After 20 lessons, open loop | Original (0.65/0.35, outcome ×0.5) | Tuned (0.68/0.32, outcome ×1) |
+|---|---|---|
+| Medium noise: harmful / coverage / precision | 5.6% / 0.38 / 0.70 | **1.5% / 0.39 / 0.71** |
+| High noise: worst harmful rate (any checkpoint) | 10.9% | **6.0%** |
+| Closed loop, medium: harmful / coverage | 3.7% / 0.29 | **1.6% / 0.32** |
+| Early signs matching the learner (medium / high noise) | 61% / 51% | **80% / 84%** |
+
+Findings:
+- Nearly all harmful errors are taste/effect conflicts where the verdict followed what the
+  learner said before outcomes could flag the conflict. Weighting outcomes like a reaction
+  (×1 instead of ×0.5) lowers harmful errors at every margin without losing coverage: scored
+  against the learner's own baseline, outcomes are a better check than the original
+  down-weighting assumed.
+- A stricter margin (0.75/0.25) gets worst-case harm under 5% but halves coverage; 0.68/0.32
+  is the knee.
+- Early signs from combined evidence were near coin flips (single noisy outcomes). They now
+  use only stated + reaction signals, which keeps a single clear "this confused me" visible.
+- `test_learner_model.py` guards these numbers. Re-run `python -m mentor_core.learner_model_sim`
+  after changing `ModelParams`.
+
+Caveat: the simulation is only as good as its noise assumptions. Revisit with real
+(anonymous, opt-in) signal logs once there are any.

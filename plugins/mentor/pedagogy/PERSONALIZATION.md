@@ -61,7 +61,8 @@ Don't:
    repeat or rate it. This is the most valuable data and it's free.
 2. **Implicit outcomes.** Pass `taught_with` on the first 1-2 graded items after each
    explanation. The engine compares the score with the learner's own baseline, so a hard item
-   doesn't count against an angle unfairly. It's weighted low.
+   doesn't count against an angle unfairly. Outcomes weigh as much as a reaction: they are the
+   best check on whether something the learner *likes* actually helps them.
 3. **One question at lesson close, optional, concrete.** Not a 1-5 rating. Name the actual
    pieces: *"Quick one, skip if you like: which part did the work for you, the shear picture or
    the matrix-column example? Anything that felt like noise?"* Turn the answer into 1-3 signals.
@@ -79,7 +80,9 @@ Don't:
 ## Reading the model
 
 `learner_model()` returns `guidance` (plain-language directives) plus the evidence:
-- `works` / `avoid`: dimension values with enough evidence (score ≥ 0.65 or ≤ 0.35).
+- `works` / `avoid`: dimension values with enough evidence (score ≥ 0.68 or ≤ 0.32).
+- `early_signs`: one or two clear things the learner *said* (not yet a verdict). Act on them
+  gently: they match the learner's real experience about 80% of the time in simulation.
 - `liked` vs `worked`: what they enjoy vs how practice actually went. `conflicts` lists where
   they disagree. *Liked but didn't work* → use it as the hook and teach the core another way.
   *Worked but disliked* → keep it brief, say why you use it, pair it with something they enjoy.

@@ -7,7 +7,7 @@ facts about their background. It spans all courses: a person is the same person 
 Like node state, the model is derived by replaying an append-only signal log, so a correction
 is a voided signal, never an edited preference. Deterministic, no LLM calls.
 
-Signal kinds (weights in ``KIND_WEIGHT``):
+Signal kinds (weights in ``ModelParams.kind_weight``):
 - ``fact``: background the learner stated ("backend developer, Python daily"). Not scored.
 - ``stated``: an explicit preference ("I prefer pictures before formulas", "I like chess").
 - ``reaction``: feedback on something specific that was taught ("the camera analogy clicked").
@@ -21,6 +21,7 @@ learners' preferences and what actually helps them often differ, and the tutor s
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -43,9 +44,27 @@ ADJUST_WORDS = {"pace": ("slower", "faster"), "depth": ("lighter", "deeper"),
                 "length": ("shorter", "longer"), "rigor": ("less formal", "more formal"),
                 "challenge": ("easier", "harder")}
 
-KIND_WEIGHT = {"stated": 1.5, "reaction": 1.0, "outcome": 0.5}
-HALF_LIFE_DAYS = 120.0
-WORKS, AVOID, MIN_EVIDENCE = 0.65, 0.35, 1.5
+
+
+@dataclass(frozen=True)
+class ModelParams:
+    """Thresholds of the learner model, calibrated on simulated learners (learner_model_sim.py;
+    results in docs/DECISIONS.md, 2026-10-13 calibration)."""
+    # Outcomes count as much as a reaction: relative to the learner's own baseline they are the
+    # best guard against verdicts that follow taste rather than what helps.
+    kind_weight: dict[str, float] = field(
+        default_factory=lambda: {"stated": 1.5, "reaction": 1.0, "outcome": 1.0})
+    half_life_days: float = 120.0
+    works: float = 0.68          # posterior mean at or above which a value "works"
+    avoid: float = 0.32          # at or below which it is to be avoided
+    min_evidence: float = 1.5    # weighted evidence needed before either verdict
+    # Early signs come from what the learner *said* (stated + reactions) only: single automatic
+    # outcomes are too noisy to report on their own.
+    early_evidence: float = 0.75  # explicit evidence an "early sign" needs...
+    early_margin: float = 0.15    # ...and how far from 0.5 their stated/reaction mean must be
+
+
+DEFAULT_PARAMS = ModelParams()
 
 
 def normalize_value(value: Any) -> str:
@@ -101,9 +120,10 @@ class _Tally:
         return (1 + self.pos) / (2 + self.pos + self.neg)
 
 
-def build(signals: list[dict], now: datetime,
-          known_elsewhere: list[dict] | None = None) -> dict[str, Any]:
+def build(signals: list[dict], now: datetime, known_elsewhere: list[dict] | None = None,
+          params: ModelParams = DEFAULT_PARAMS) -> dict[str, Any]:
     """Derive the learner model from (non-voided) signals in chronological order."""
+    P = params
     facts: list[dict] = []
     liked: dict[tuple[str, str], _Tally] = defaultdict(_Tally)
     worked: dict[tuple[str, str], _Tally] = defaultdict(_Tally)
@@ -117,7 +137,7 @@ def build(signals: list[dict], now: datetime,
                 facts.append({"text": s["note"], "since": s["ts"][:10], "signal_id": s["id"]})
             continue
         age = max((now - parse_ts(s["ts"])).total_seconds() / 86400, 0.0)
-        w = float(s.get("weight") or 1.0) * KIND_WEIGHT[s["kind"]] * 0.5 ** (age / HALF_LIFE_DAYS)
+        w = float(s.get("weight") or 1.0) * P.kind_weight[s["kind"]] * 0.5 ** (age / P.half_life_days)
         valence = max(-1.0, min(1.0, float(s["valence"] or 0.0)))
         bucket = worked if s["kind"] == "outcome" else liked
         for dim, val in (s.get("dims") or {}).items():
@@ -139,10 +159,11 @@ def build(signals: list[dict], now: datetime,
         entry = {"dim": key[0], "value": key[1], "score": round(both.mean, 2),
                  "evidence": round(both.evidence, 2), "signals": both.n,
                  "liked": round(liked[key].mean, 2) if key in liked else None,
+                 "liked_evidence": round(liked[key].evidence, 2) if key in liked else 0.0,
                  "worked": round(worked[key].mean, 2) if key in worked else None}
-        if both.evidence >= MIN_EVIDENCE and both.mean >= WORKS:
+        if both.evidence >= P.min_evidence and both.mean >= P.works:
             entry["verdict"] = "works"
-        elif both.evidence >= MIN_EVIDENCE and both.mean <= AVOID:
+        elif both.evidence >= P.min_evidence and both.mean <= P.avoid:
             entry["verdict"] = "avoid"
         else:
             entry["verdict"] = "unclear"
@@ -154,11 +175,11 @@ def build(signals: list[dict], now: datetime,
         lk, wk = liked[key], worked[key]
         if lk.evidence < 1 or wk.evidence < 1:
             continue
-        if lk.mean >= WORKS and wk.mean <= 0.4:
+        if lk.mean >= P.works and wk.mean <= 0.4:
             conflicts.append({"dim": key[0], "value": key[1], "pattern": "liked_not_worked",
                               "advice": "the learner enjoys it but practice after it is weak: "
                                         "use it as a hook, then teach the core with an angle that works"})
-        elif lk.mean <= AVOID and wk.mean >= 0.6:
+        elif lk.mean <= P.avoid and wk.mean >= 0.6:
             conflicts.append({"dim": key[0], "value": key[1], "pattern": "worked_not_liked",
                               "advice": "it helps even though the learner dislikes it: keep it short, "
                                         "say why you use it, and pair it with an angle they enjoy"})
@@ -185,8 +206,9 @@ def build(signals: list[dict], now: datetime,
         "avoid": [e for e in prefs if e["verdict"] == "avoid"],
         "unclear": [e for e in prefs if e["verdict"] == "unclear"],
         # Too little evidence for a verdict, but already leaning one way: worth acting on gently.
-        "early_signs": [e for e in prefs if e["verdict"] == "unclear" and e["evidence"] >= 0.75
-                        and abs(e["score"] - 0.5) >= 0.15],
+        "early_signs": [e for e in prefs if e["verdict"] == "unclear" and e["liked"] is not None
+                        and e["liked_evidence"] >= P.early_evidence
+                        and abs(e["liked"] - 0.5) >= P.early_margin],
         "conflicts": conflicts,
         "adjust": adjustments,
         "explore": explore,
@@ -213,10 +235,10 @@ def guidance(model: dict) -> list[str]:
     if model["avoid"]:
         out.append("Avoid as the main explanation: " + ", ".join(_label(e) for e in model["avoid"][:4])
                    + " (fine as a brief secondary view).")
-    early = [e for e in model["early_signs"] if e["dim"] != "domain" or e["score"] < 0.5]
+    early = [e for e in model["early_signs"] if e["dim"] != "domain" or e["liked"] < 0.5]
     if early:
         out.append("Early signs (not settled): " + ", ".join(
-            f"{_label(e)} {'helped' if e['score'] > 0.5 else 'did not help'}" for e in early[:4]) + ".")
+            f"{_label(e)} {'helped' if e['liked'] > 0.5 else 'did not help'}" for e in early[:4]) + ".")
     for c in model["conflicts"]:
         out.append(f"{c['value']} ({c['dim']}): {c['advice']}.")
     for dim, a in model["adjust"].items():

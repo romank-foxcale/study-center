@@ -181,3 +181,37 @@ def test_single_clear_signal_is_an_early_sign_not_a_verdict():
     assert [e["value"] for e in model["early_signs"]] == ["analogy"]  # outcome alone is too weak
     assert any("analogy (angle) did not help" in g for g in model["guidance"])
     assert {"formal", "analogy"}.isdisjoint(e["value"] for e in model["explore"])  # tried, even if weakly
+
+
+# --- calibration on simulated learners (learner_model_sim.py) -------------------
+def test_simulation_is_deterministic():
+    from mentor_core.learner_model_sim import NOISE_LEVELS, evaluate
+    a = evaluate(learner_model.DEFAULT_PARAMS, NOISE_LEVELS["medium"], learners=20)
+    b = evaluate(learner_model.DEFAULT_PARAMS, NOISE_LEVELS["medium"], learners=20)
+    assert {c: vars(s) for c, s in a.items()} == {c: vars(s) for c, s in b.items()}
+
+
+def test_defaults_meet_calibration_targets():
+    """Guards the 2026-10-13 calibration (docs/DECISIONS.md). If you change ModelParams, rerun
+    `python -m mentor_core.learner_model_sim` and update these bounds deliberately."""
+    from mentor_core.learner_model_sim import NOISE_LEVELS, evaluate
+    medium = evaluate(learner_model.DEFAULT_PARAMS, NOISE_LEVELS["medium"])
+    assert medium[20].harmful_rate <= 0.025        # rarely leads with what hurts / avoids what helps
+    assert medium[20].coverage >= 0.35             # finds a third of the real effects in 20 lessons
+    closed = evaluate(learner_model.DEFAULT_PARAMS, NOISE_LEVELS["medium"], closed_loop=True)
+    assert closed[20].harmful_rate <= 0.025 and closed[20].coverage >= 0.28
+    for noise in ("low", "high"):
+        res = evaluate(learner_model.DEFAULT_PARAMS, NOISE_LEVELS[noise])
+        assert max(s.harmful_rate for s in res.values()) <= 0.07
+
+
+def test_tuned_defaults_beat_the_original_ones():
+    from dataclasses import replace
+    from mentor_core.learner_model_sim import NOISE_LEVELS, evaluate
+    original = replace(learner_model.DEFAULT_PARAMS, works=0.65, avoid=0.35,
+                       kind_weight={"stated": 1.5, "reaction": 1.0, "outcome": 0.5})
+    for noise in ("medium", "high"):
+        old = evaluate(original, NOISE_LEVELS[noise])[20]
+        new = evaluate(learner_model.DEFAULT_PARAMS, NOISE_LEVELS[noise])[20]
+        assert new.harmful_rate < old.harmful_rate
+        assert new.coverage >= old.coverage - 0.03

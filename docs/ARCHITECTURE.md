@@ -57,9 +57,11 @@ Workspace (~/Mentor by default)
 ## Learner model (pedagogy/PERSONALIZATION.md)
 - Signals: `fact` (background), `stated` (preference, ×1.5), `reaction` (feedback on something
   taught, ×1), `outcome` (automatic from `evidence_record(taught_with=...)`, score relative to
-  the learner's own baseline, ×0.5). Half-life 120 days.
-- Per (dimension, value): Beta(1,1) posterior over "helps". `works` ≥ 0.65 and `avoid` ≤ 0.35
+  the learner's own baseline, ×1). Half-life 120 days.
+- Per (dimension, value): Beta(1,1) posterior over "helps". `works` ≥ 0.68 and `avoid` ≤ 0.32
   with evidence ≥ 1.5. "Liked" and "worked" are kept apart and disagreements reported.
+  Early signs use only what the learner said (stated + reactions). All thresholds live in
+  `learner_model.ModelParams`, calibrated on simulated learners (`learner_model_sim.py`).
 - `adjust` offsets (pace, depth, length, rigor, challenge) accumulate without decay, clamped ±3.
 - `explore` lists never-tried angles/formats so the tutor keeps sampling (about 1 lesson in 4).
 
