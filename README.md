@@ -58,6 +58,7 @@ deleted on uninstall, your learning history is not.
 | `/mentor:review` | Due spaced reviews (free recall, confidence first) |
 | `/mentor:quiz` | Mixed, interleaved quiz across recent topics |
 | `/mentor:why <question>` | Deep "why does this work?" explanation |
+| `/mentor:tutor <question>` | One-off help with a problem or concept, Mentor-style, no course needed |
 | `/mentor:progress` | Mastery, capabilities, due forecast, calibration, course map |
 | `/mentor:plan` | View or edit the knowledge graph |
 | `/mentor:me` | What Mentor has learned about you; correct it or give feedback |
@@ -97,12 +98,18 @@ uv run mentor --help
 
 The core has no LLM calls. Scheduling, mastery and graph logic are deterministic and tested,
 including a synthetic-learner check that the diagnostic places 90%+ of learners correctly
-within 20 questions. Run the behaviour evals (they need a logged-in Claude Code):
+within 20 questions. Run the behaviour evals (they need the standalone CLI logged in with
+`claude auth login`; the desktop app's sign-in doesn't carry over). The eval harness rejects
+hard links, so move `core/.venv` aside first, and point the engine at a throwaway workspace so
+your real courses aren't touched:
 
 ```bash
+mv plugins/mentor/core/.venv plugins/mentor/core/.venv.bak
 cd plugins/mentor
-claude plugin eval .
+MENTOR_FORCE_WORKSPACE=~/mentor-eval-ws claude plugin eval . --mocks off --allow-tools mcp__plugin_mentor_core
 ```
+
+Afterwards, move `core/.venv.bak` back to `core/.venv`.
 
 ## License
 
