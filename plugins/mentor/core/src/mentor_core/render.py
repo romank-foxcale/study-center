@@ -99,7 +99,7 @@ class _Renderer:
             parts.append(f"<details><summary>Try it first, then reveal</summary><p><b>{answer}</b></p>"
                          f"{f'<p>{explain}</p>' if explain else ''}</details></div>")
         parts.append("</section>\n")
-        self.used.add("math")
+        self.used.update(("math", "quiz"))
         return "".join(parts)
 
     def render(self, markdown: str) -> str:

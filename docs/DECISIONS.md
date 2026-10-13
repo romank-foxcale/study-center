@@ -48,3 +48,23 @@ Verified against code.claude.com docs and the local CLI:
 - Phase 6 simulated-learner harness (`evals/`) is scaffolded; calibration labels still to collect.
 - Phase 7 extras (Manim visualizer, marimo lessons, AnkiConnect, provider-agnostic `mentor chat`)
   are not started.
+
+## 2026-10-13: Learner model, source curation, text-first visuals
+
+| Decision | Why |
+|---|---|
+| A **global learner model** (`signals` table → `LEARNER.md`), separate from per-course PROFILE.md | A person is the same person in every course. Background, interests and what works carry over; known concepts from other courses become bridges. |
+| Signals are append-only and the model is replayed (like evidence) | Same correction story as node state: void, never edit. Deterministic and testable. |
+| Separate "liked" (stated, reaction) from "worked" (outcome) and report conflicts | What learners prefer and what helps them often differ. The tutor should use liked-but-ineffective things as hooks, not as the core explanation. |
+| Outcome signals are relative to the learner's own recent score, weighted 0.5 | Item difficulty confounds raw scores; one hard item shouldn't condemn an angle. |
+| Fixed vocabularies for `angle`, `format`, `abstraction`; free text for `domain` | Aggregation needs shared keys; interests are open-ended. No "learning style" dimension on purpose (Pashler et al. 2008). |
+| Preference adjustments (pace, depth...) accumulate without decay | "Go faster" stays true until the learner says otherwise; categorical evidence decays (half-life 120 days) so the model follows the learner's growth. |
+| `explore` list plus "about one lesson in four uses an untested angle as the alternate" | Avoids locking in on noisy early preferences. |
+| New agents: `source-curator` (dedupe paraphrases, pick canonical sources, map angles) and `visualizer` (rare level-3 explorables); new researcher persona `explainer-scout` | Most material restates a few originals. Curating for distinct contribution saves the learner's time; linking the best existing explanation beats paraphrasing it. |
+| `APPROACH.md` per course, written by the curriculum-architect | The teaching approach (e.g. geometry first) is chosen explicitly from evidence + learner model and is reviewable. Kept out of graph.yaml so the validated schema doesn't change. |
+| `lesson_save(render="auto")` writes HTML only for plots, JSXGraph, quiz blocks or explorables | Text first: most lessons read fine as Markdown (VS Code, GitHub and Obsidian render math and Mermaid). The template's self-check moved from a `quiz` block to plain Markdown so it doesn't force a page. |
+| `explorable_save` validates bespoke pages (pinned allowlisted CDNs, no network calls, balanced markup, `<title>`, ≤ 2 MB) | Generated JavaScript runs in the learner's browser; keep it self-contained and reviewable. |
+| `/mentor:me` shows and corrects the model; `learner_reset` voids everything | Open learner model: the learner sees everything inferred about them and can correct it. |
+
+Not done yet: tuning the thresholds (0.65 / 0.35 / 1.5) and outcome weight against simulated
+learners (`evals/scenarios.yaml` has a `la-feedback-loop` scenario to start from).

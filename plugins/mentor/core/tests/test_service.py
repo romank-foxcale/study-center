@@ -112,10 +112,11 @@ def test_lesson_save_render_and_navigation(mentor, course):
     assert a["lesson_id"] == "0001-vec.basics" and b["lesson_id"] == "0002-vec.dot"
     assert len(b["items_saved"]) == 2
     assert b["problems"] == []
-    assert set(b["features"]) == {"math", "mermaid", "plot", "jsxgraph"}
+    assert set(b["features"]) == {"math", "mermaid", "plot", "jsxgraph", "quiz"}
+    assert a["html"] is None and "render_skipped" in a  # plain text: lesson.md is enough
     page = Path(b["html"]).read_text(encoding="utf-8")
     assert "<script>alert" not in page and "&lt;script&gt;alert" in page
-    assert "../0001-vec.basics/lesson.html" in page
+    assert "../0001-vec.basics/lesson.md" in page  # the neighbour has no HTML
     assert "katex@0.16.11" in page
     again = mentor.lesson_save(course, "vec.dot", LESSON_MD, PACK)
     assert again["lesson_id"] == "0002-vec.dot" and again["version"] == 2
