@@ -96,6 +96,24 @@ CREATE TABLE IF NOT EXISTS node_state(
     PRIMARY KEY(course_id, node_id)
 );
 
+-- Learner model signals (pedagogy/PERSONALIZATION.md). Global on purpose: they describe the
+-- person, not a course, so a new course starts already knowing them. Append-only like evidence;
+-- the model is derived by replaying them (learner_model.build).
+CREATE TABLE IF NOT EXISTS signals(
+    id        INTEGER PRIMARY KEY,
+    ts        TEXT NOT NULL,
+    course_id INTEGER,
+    node_id   TEXT,
+    kind      TEXT NOT NULL,          -- fact | stated | reaction | outcome
+    target    TEXT,                   -- what it is about, e.g. "game-camera analogy for rotation"
+    dims      TEXT,                   -- json {dimension: value}, see learner_model.DIMENSIONS
+    valence   REAL,                   -- -1 (did not help) .. 1 (helped)
+    adjust    TEXT,                   -- json {pace|depth|length|rigor|challenge: -1|0|1}
+    weight    REAL NOT NULL DEFAULT 1,
+    note      TEXT,                   -- the learner's reason, quoted where possible
+    voided    INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS lessons(
     lesson_id  TEXT NOT NULL,
     course_id  INTEGER NOT NULL,

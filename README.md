@@ -2,18 +2,28 @@
 
 Tell it what you want to learn. Mentor:
 
-1. **interviews you** briefly (what you know, why, time, preferences),
-2. **researches** the topic from several expert perspectives, with citations,
+1. **interviews you** briefly (what you know, why, time, a bit about you), or, if you've
+   learned with Mentor before, just confirms what it already knows about you,
+2. **researches** the topic from several expert perspectives, then **curates** hard: it drops
+   the paraphrases and keeps the few sources that are genuinely the best (the canonical
+   explanation of each idea, the distinct angles, existing great visualizations),
 3. **builds a prerequisite knowledge graph** of small, testable concepts,
 4. **places you** with a short adaptive diagnostic (≤ 20 questions),
-5. **teaches one concept at a time**: why it matters, intuition, the precise idea, *why it
-   works*, worked examples, practice with hints (not answers), misconception checks, explain-back,
+5. **teaches one concept at a time**, *for you*: examples from your world, the explanation
+   angle that works for you first (with a different one ready when it doesn't land), why it
+   matters, the precise idea, *why it works*, worked examples, practice with hints (not
+   answers), misconception checks, explain-back,
 6. **decides mastery with an engine, not vibes**: Bayesian knowledge tracing, a mastery gate,
    and confirmation at a delayed review,
 7. **schedules spaced reviews** (FSRS) with credit propagation between related concepts, and
    reminds you at session start,
-8. leaves you **artifacts**: lesson pages with math, diagrams and interactive plots, a course
-   map, progress dashboard and an Anki deck.
+8. **gets to know you as you go**: every reaction ("that analogy confused me", "the moving
+   grid made it click", "slower please") and how practice went after each kind of explanation
+   feeds a learner model shared by all your courses. You can read it (`LEARNER.md`) and
+   correct it (`/mentor:me`) at any time,
+9. leaves you **notes, not noise**: Markdown lessons by default, and an interactive page only
+   when seeing something move is the point (in the spirit of 3Blue1Brown or the Transformer
+   Explainer), plus a course map, progress dashboard and an Anki deck.
 
 The design follows the evidence: tutors that hand out answers make students worse once the AI
 is gone, while tutors that scaffold, sequence and verify help (see
@@ -50,6 +60,7 @@ deleted on uninstall, your learning history is not.
 | `/mentor:why <question>` | Deep "why does this work?" explanation |
 | `/mentor:progress` | Mastery, capabilities, due forecast, calibration, course map |
 | `/mentor:plan` | View or edit the knowledge graph |
+| `/mentor:me` | What Mentor has learned about you; correct it or give feedback |
 | `/mentor:config` | Workspace, review budget, retention target, teaching preferences |
 | `/mentor:export` | Anki deck, JSON, or the HTML lesson set |
 
@@ -63,11 +74,12 @@ plugins/mentor/
   .claude-plugin/plugin.json      manifest (+ workspace userConfig)
   .mcp.json                       launches the core MCP server with uv
   skills/                         /mentor:* commands
-  agents/                         researcher, curriculum-architect, graph-critic,
-                                  lesson-author, fact-checker, grader
+  agents/                         researcher, source-curator, curriculum-architect,
+                                  graph-critic, lesson-author, fact-checker, visualizer, grader
   hooks/ + scripts/               SessionStart due-review reminder (stdlib only)
   output-styles/mentor.md         optional Socratic style
-  pedagogy/                       the tutor constitution, lesson template, rubrics, formats
+  pedagogy/                       the tutor constitution, personalization, visuals policy,
+                                  lesson template, rubrics, formats
   evals/                          `claude plugin eval` behaviour cases
   core/                           mentor_core: provider-agnostic Python engine + MCP server + CLI
 evals/                            simulated-learner scenarios, personas and judge rubric

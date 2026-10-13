@@ -10,7 +10,8 @@ allowed-tools: mcp__plugin_mentor_core, Read, Write, Glob, Agent
 Goal from the user: **$ARGUMENTS**
 
 Read `${CLAUDE_PLUGIN_ROOT}/pedagogy/CONSTITUTION.md` now and follow it for the whole session.
-File formats: `${CLAUDE_PLUGIN_ROOT}/pedagogy/FORMATS.md`.
+File formats: `${CLAUDE_PLUGIN_ROOT}/pedagogy/FORMATS.md`. How we get to know the learner:
+`${CLAUDE_PLUGIN_ROOT}/pedagogy/PERSONALIZATION.md`.
 
 If the goal is empty, ask what they want to learn and stop.
 If `course_list` shows an active course with a very similar goal, ask whether to resume it
@@ -20,31 +21,49 @@ If `course_list` shows an active course with a very similar goal, ask whether to
 Call `course_create(goal)`. Keep the returned `course` slug and `dir`.
 
 ## 2. Intake: one message, then listen
-Ask everything in **one** short message (DeepTutor-style intake):
+First call `learner_model()`. It holds what Mentor already knows about this person from
+other courses.
+
+**New learner** (no facts or signals): ask everything in **one** short message
+(DeepTutor-style intake):
 1. What do you already know that's related? (tools, math, prior courses; rough is fine)
 2. Why do you want this, and what would "done" look like? (a project, a job task, an exam, curiosity)
 3. How much time per week, and is there a deadline?
-4. How do you like to be taught? (more intuition or more rigor; Socratic questions or explain-first;
-   any interests to draw examples from; language)
+4. A bit about you, so examples come from your world: what do you do, what are you into?
+5. How do you like to be taught? (intuition or rigor first; questions or explain-first;
+   language). Anything that has never worked for you?
 
-Tell them they can skip any question. When they answer, write MISSION.md and PROFILE.md with
-`profile_write`, recording **only what they said** (no invented details). If they skip, use
-sensible defaults (depth 5, explain-first with checks, their language) and say you'll adapt.
+**Returning learner**: don't re-ask what the model knows. Confirm it in two or three lines
+("Last time: pictures before formulas, examples from game dev, a bit faster than default.
+Same here?") and ask only questions 1-3 for this goal.
 
-## 3. Research in parallel
-Spawn **4 `researcher` subagents in one message** so they run concurrently, one per persona:
-`practitioner`, `theorist`, `educator`, `recent learner`. Add `skeptic/historian` for broad goals.
-Give each: the goal, a 3-line summary of MISSION.md and PROFILE.md, its persona, and
+Tell them they can skip any question. When they answer:
+- write MISSION.md and PROFILE.md with `profile_write`, recording **only what they said**;
+- record learner signals (PERSONALIZATION.md): a `fact` for background they shared, `stated`
+  signals for interests (`dims={"domain": ...}`) and teaching preferences (`angle`, `format`,
+  `adjust`), with their words in `note`.
+If they skip, use sensible defaults (depth 5, explain-first with checks, their language) and
+say you'll adapt as you learn what works for them.
+
+## 3. Research in parallel, then cut it down
+Spawn **5 `researcher` subagents in one message** so they run concurrently, one per persona:
+`practitioner`, `theorist`, `educator`, `recent learner`, `explainer-scout`. Add
+`skeptic/historian` for broad goals. Give each: the goal, a 3-line summary of MISSION.md and
+PROFILE.md, 2-3 lines of the learner model's guidance and facts, its persona, and
 `output_path = <dir>/research/<persona>.md`.
 
-While they run, tell the learner what's happening (about 2-4 minutes).
+While they run, tell the learner what's happening (about 2-4 minutes): several researchers
+look at the topic from different angles, then a curator throws out the paraphrases and keeps
+the few sources that are actually the best.
 
-When all return, consolidate a RESOURCES.md (format in FORMATS.md: the best 8-15 sources,
-deduplicated, with licenses) and save it with `resources_write`.
+When all return, spawn `source-curator` with the course dir, the pedagogy folder
+(`${CLAUDE_PLUGIN_ROOT}/pedagogy`) and the learner model summary. It writes RESOURCES.md and
+`research/ANGLES.md`. Skim both: you'll present the canonical sources in step 5.
 
 ## 4. Build the knowledge graph
 1. Spawn `curriculum-architect` with: the course dir, the pedagogy folder
-   (`${CLAUDE_PLUGIN_ROOT}/pedagogy`), and output path `<dir>/graph.draft.yaml`.
+   (`${CLAUDE_PLUGIN_ROOT}/pedagogy`), and output path `<dir>/graph.draft.yaml`. It also
+   writes APPROACH.md: how this course will teach, chosen for this learner.
 2. Spawn `graph-critic` on the draft (same folder paths).
 3. Apply the critic's fixes yourself (Read/Write the draft), then `graph_propose(course, <yaml text>)`.
 4. If `saved` is false, fix every error and resubmit. Address important warnings
@@ -52,7 +71,9 @@ deduplicated, with licenses) and save it with `resources_write`.
 
 ## 5. Show the plan
 Present briefly:
+- the approach in one or two sentences from APPROACH.md, and why it suits them
 - the capabilities ("by the end you'll be able to...")
+- the 2-4 `canonical` resources, in case they like to read or watch alongside
 - the graph size and estimated total time from `stats.total_minutes`
 - the map: `graph_get(course, view="mermaid")` in a ```mermaid block, and mention
   `<dir>/graph.html` for a full-page view

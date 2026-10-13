@@ -20,8 +20,10 @@ Check:
 6. **Objectives.** Vague ("understand X") instead of observable ("compute", "explain why",
    "choose between").
 7. **Misconceptions.** Generic or missing.
-8. **Learner fit.** Too much time on things PROFILE.md says they already know; anything
-   that conflicts with the mission's constraints.
+8. **Learner fit.** Too much time on things PROFILE.md says they already know (or that the
+   architect's notes say were learned in another course); anything that conflicts with the
+   mission's constraints. Does APPROACH.md's chosen approach suit this learner and the evidence
+   in `research/ANGLES.md`?
 9. **Confusable pairs** that should be marked.
 
 Reply with a numbered fix list, most important first. For each: the node or edge ids, the

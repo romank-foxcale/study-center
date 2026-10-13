@@ -115,6 +115,27 @@ class Store:
             out.append(d)
         return out
 
+    # -- learner signals ----------------------------------------------------
+    def add_signal(self, row: dict) -> int:
+        row = dict(row)
+        for key in ("dims", "adjust"):
+            if key in row and not isinstance(row[key], (str, type(None))):
+                row[key] = json.dumps(row[key], ensure_ascii=False)
+        cols = ",".join(row)
+        marks = ",".join("?" for _ in row)
+        cur = self.execute(f"INSERT INTO signals({cols}) VALUES({marks})", row.values())
+        return int(cur.lastrowid)
+
+    def signals(self, include_voided: bool = False) -> list[dict]:
+        sql = "SELECT * FROM signals" + ("" if include_voided else " WHERE voided=0") + " ORDER BY ts, id"
+        out = []
+        for r in self.all(sql):
+            d = dict(r)
+            d["dims"] = json.loads(d["dims"]) if d["dims"] else {}
+            d["adjust"] = json.loads(d["adjust"]) if d["adjust"] else {}
+            out.append(d)
+        return out
+
     # -- node state ---------------------------------------------------------
     def save_states(self, course_id: int, states: dict[str, dict]) -> None:
         cols = ["state", "p_learned", "indep_correct", "forms_seen", "bloom_reached",
