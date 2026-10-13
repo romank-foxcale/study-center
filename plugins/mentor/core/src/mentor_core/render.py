@@ -44,7 +44,9 @@ class _Renderer:
         self.md = MarkdownIt("commonmark", {"html": False, "linkify": False, "typographer": True})
         self.md.enable(["table", "strikethrough"])
         self.md.use(dollarmath_plugin, renderer=_math_renderer, double_inline=True)
-        self.md.add_render_rule("fence", self._fence)
+        # Set the rule directly: add_render_rule rebinds it with __get__, which turns `self`
+        # into markdown-it's RendererHTML on some Python versions (3.11).
+        self.md.renderer.rules["fence"] = self._fence
         self.used: set[str] = set()
         self.counter = 0
 
