@@ -67,6 +67,30 @@ deleted on uninstall, your learning history is not.
 
 Optional: `/output-style mentor` makes Claude behave as a Socratic tutor everywhere.
 
+## Troubleshooting
+
+**"plugin:mentor:core" timed out / the mentor tools are missing on first use.** Claude Code gives
+an MCP server 30 seconds to start. The very first start of Mentor's engine can take longer:
+`uv` downloads its Python packages and Python compiles them. Mentor's session-start hook does
+this setup in the background, so it usually fixes itself:
+
+1. wait a minute, then reconnect `plugin:mentor:core` from `/mcp` (or start a new session);
+2. if it keeps timing out (slow network, antivirus scanning new files), give servers more
+   time to start by launching Claude Code with `MCP_TIMEOUT` set in milliseconds, e.g. 2 minutes:
+
+```bash
+MCP_TIMEOUT=120000 claude
+```
+
+On Windows PowerShell, set it for the session first:
+
+```powershell
+$env:MCP_TIMEOUT = "120000"; claude
+```
+
+To make it permanent, add `MCP_TIMEOUT` to your user environment variables (or your shell
+profile). Once the engine has started once, later starts take a few seconds.
+
 ## Repository layout
 
 ```
