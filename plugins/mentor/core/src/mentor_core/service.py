@@ -7,6 +7,7 @@ the CLI, tests and any future provider-agnostic front end.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import webbrowser
 from collections import Counter
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from . import diagnostic as diag
-from . import fire, graph as graphmod, planner
+from . import fire, graph as graphmod, learner_model, planner
 from .export_anki import build_deck
 from .fsrs_adapter import make_scheduler
 from .learner import (
@@ -29,6 +30,12 @@ from .store import Store
 from .verify_math import check_math as _check_math
 
 COURSE_SUBDIRS = ("research", "lessons", "reference", "records", "exports")
+LEARNER_FILE = "LEARNER.md"
+# Lesson features that markdown viewers can't show; only these make an HTML page worth writing.
+INTERACTIVE_FEATURES = {"plot", "jsxgraph", "quiz"}
+OUTCOME_KINDS = ("practice", "misconception", "explain", "check")
+EXPLORABLE_HOSTS = ("cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com")
+EXPLORABLE_MAX_BYTES = 2_000_000
 CONFIG_KEYS = {
     "review_budget": int,
     "desired_retention": float,
@@ -346,7 +353,10 @@ class Mentor:
                         hinted: bool = False, hint_level: int = 0, idk: bool = False,
                         confidence: int | None = None, latency_s: float | None = None,
                         misconceptions: list[str] | None = None, grader_version: str | None = None,
-                        rationale: str | None = None, n_options: int | None = None) -> dict:
+                        rationale: str | None = None, n_options: int | None = None,
+                        taught_with: dict | None = None) -> dict:
+        """``taught_with`` names the explanation the learner just had (learner_model dims, e.g.
+        ``{"angle": "geometric", "format": "interactive"}``); it feeds an outcome signal."""
         if kind not in SCORED_KINDS + ("told",):
             raise MentorError(f"kind must be one of {SCORED_KINDS + ('told',)}")
         if kind != "told" and score is None and not idk:
@@ -360,12 +370,23 @@ class Mentor:
             item = self.store.one("SELECT form, bloom FROM items WHERE item_id=?", (item_id,))
             if item:
                 form, bloom = form or item["form"], bloom or item["bloom"]
+        try:
+            taught = learner_model.validate_dims(taught_with) if taught_with else {}
+        except ValueError as exc:
+            raise MentorError(f"taught_with: {exc}") from exc
         before = self._states(c["id"])
+        baseline = self._score_baseline(c["id"])
+        meta = {k: v for k, v in (("n_options", n_options), ("taught_with", taught or None)) if v}
         ev_id = self._add(c["id"], node, kind, item_id=item_id, score=None if score is None else float(score),
                           form=form, bloom=bloom, hinted=hinted, hint_level=hint_level, idk=idk,
                           confidence=confidence, latency_s=latency_s, misconceptions=misconceptions,
                           grader_version=grader_version, rationale=rationale,
-                          meta={"n_options": n_options} if n_options else None)
+                          meta=meta or None)
+        if taught and kind in OUTCOME_KINDS:
+            effective = 0.0 if idk else float(score or 0) - (0.2 * max(1, hint_level) if hinted else 0)
+            self._signal("outcome", course_id=c["id"], node_id=node, dims=taught,
+                         valence=max(-1.0, min(1.0, 2 * (effective - baseline))),
+                         target=f"evidence {ev_id}")
         if kind != "told":
             s = float(score or 0)
             passed = not idk and not hinted and s >= self.params.pass_score
@@ -451,7 +472,12 @@ class Mentor:
 
     # ------------------------------------------------------------------ lessons
     def lesson_save(self, course: str, node: str, lesson_md: str, pack: dict | str,
-                    sources: list[dict] | str | None = None, title: str | None = None) -> dict:
+                    sources: list[dict] | str | None = None, title: str | None = None,
+                    render: str = "auto") -> dict:
+        """``render``: auto (HTML only when the lesson has something markdown can't show:
+        plots, JSXGraph boards, quiz blocks or explorables), always, or never."""
+        if render not in ("auto", "always", "never"):
+            raise MentorError("render must be auto, always or never")
         c = self._course(course)
         g = self._graph(c["id"])
         n = self._node(g, node)
@@ -468,8 +494,11 @@ class Mentor:
         (d / "lesson.md").write_text(lesson_md.strip() + "\n", encoding="utf-8")
         (d / "pack.json").write_text(json.dumps(pack, indent=2, ensure_ascii=False), encoding="utf-8")
         (d / "sources.json").write_text(json.dumps(sources, indent=2, ensure_ascii=False), encoding="utf-8")
-        (d / "meta.json").write_text(json.dumps({"title": title or n["title"], "node": node,
-                                                 "version": version}, indent=2), encoding="utf-8")
+        meta_path = d / "meta.json"
+        old_meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        meta_path.write_text(json.dumps({"title": title or n["title"], "node": node, "version": version,
+                                         "explorables": old_meta.get("explorables", [])},
+                                        indent=2, ensure_ascii=False), encoding="utf-8")
         self.store.execute(
             "INSERT OR REPLACE INTO lessons(lesson_id,course_id,node_id,dir,version,created_at) VALUES(?,?,?,?,?,?)",
             (lesson_id, c["id"], node, str(d), version, iso(now())),
@@ -477,9 +506,17 @@ class Mentor:
         saved_items = []
         for item in pack.get("items") or []:
             saved_items.append(self.item_save(c["slug"], node, item)["item_id"])
-        rendered = self.lesson_render(c["slug"], lesson_id)
-        return {"lesson_id": lesson_id, "version": version, "dir": str(d), "items_saved": saved_items,
-                **rendered}
+        out = {"lesson_id": lesson_id, "version": version, "dir": str(d), "lesson_md": str(d / "lesson.md"),
+               "items_saved": saved_items}
+        features = set(render_page(lesson_md, title="")["features"])
+        if render == "always" or (render == "auto" and (features & INTERACTIVE_FEATURES
+                                                        or any(d.glob("explore-*.html")))):
+            return {**out, **self.lesson_render(c["slug"], lesson_id)}
+        stale = d / "lesson.html"
+        if stale.exists():
+            stale.unlink()
+        return {**out, "html": None, "features": sorted(features),
+                "render_skipped": "plain-markdown lesson: lesson.md is the reference copy"}
 
     def lesson_render(self, course: str, lesson_id: str | None = None, node: str | None = None,
                       open_browser: bool = False) -> dict:
@@ -496,10 +533,15 @@ class Mentor:
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
         sources = json.loads((d / "sources.json").read_text(encoding="utf-8"))
         nav = {"map": "../../graph.html"}
+
+        def link(r: dict) -> str:  # neighbours may be plain-markdown lessons without HTML
+            name = "lesson.html" if (Path(r["dir"]) / "lesson.html").exists() else "lesson.md"
+            return f"../{r['lesson_id']}/{name}"
+
         if idx > 0:
-            nav["prev"] = f"../{rows[idx - 1]['lesson_id']}/lesson.html"
+            nav["prev"] = link(rows[idx - 1])
         if idx + 1 < len(rows):
-            nav["next"] = f"../{rows[idx + 1]['lesson_id']}/lesson.html"
+            nav["next"] = link(rows[idx + 1])
         page = render_page((d / "lesson.md").read_text(encoding="utf-8"), title=meta["title"],
                            subtitle=c["goal"], sources=sources, nav=nav)
         out = d / "lesson.html"
@@ -522,6 +564,132 @@ class Mentor:
         if open_browser:
             webbrowser.open(out.as_uri())
         return {"html": str(out), "md": str(d / f"{stem}.md"), "problems": smoke_check(page["html"])}
+
+    def explorable_save(self, course: str, node: str, name: str, html_text: str, question: str) -> dict:
+        """Validate and store a bespoke interactive page next to a lesson (pedagogy/VISUALS.md, level 3).
+
+        Not saved when it fails a check: unbalanced markup, resources from hosts other than the
+        pinned CDNs, network calls, a missing <title>, or a size over 2 MB.
+        """
+        c = self._course(course)
+        row = self.store.one("SELECT * FROM lessons WHERE course_id=? AND node_id=?", (c["id"], node))
+        if not row:
+            raise MentorError(f"save the lesson for '{node}' first (lesson_save)")
+        if not question.strip():
+            raise MentorError("question is required: the one thing this explorable lets the learner see")
+        problems = smoke_check(html_text)
+        if len(html_text.encode("utf-8")) > EXPLORABLE_MAX_BYTES:
+            problems.append("larger than 2 MB")
+        if not re.search(r"<title>[^<]+</title>", html_text, re.I):
+            problems.append("missing <title>")
+        for url in re.findall(r"""(?:src|href)\s*=\s*["'](https?://[^"']+)""", html_text, re.I):
+            host = url.split("/")[2].lower()
+            if host not in EXPLORABLE_HOSTS:
+                problems.append(f"external resource from a non-allowlisted host: {host}")
+            elif "@" not in url:
+                problems.append(f"unpinned CDN version: {url}")
+        if re.search(r"\b(fetch|XMLHttpRequest|WebSocket|sendBeacon)\s*\(", html_text):
+            problems.append("makes network calls; explorables must be self-contained")
+        if problems:
+            return {"saved": False, "problems": problems}
+        d = Path(row["dir"])
+        filename = f"explore-{slugify(name, 40)}.html"
+        (d / filename).write_text(html_text, encoding="utf-8")
+        meta_path = d / "meta.json"
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        entries = [e for e in meta.get("explorables", []) if e["file"] != filename]
+        meta["explorables"] = entries + [{"file": filename, "question": question.strip()}]
+        meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        return {"saved": True, "path": str(d / filename),
+                "markdown_link": f"[Explore: {question.strip()}]({filename})",
+                "next": "add markdown_link to lesson.md on disk, then lesson_render(course, node=...)"}
+
+    # ------------------------------------------------------------------ learner model
+    def _score_baseline(self, course_id: int) -> float:
+        """The learner's recent typical score here, so outcome signals are relative to them."""
+        scores = [0.0 if ev["idk"] else float(ev["score"] or 0) for ev in self.store.evidence(course_id)
+                  if ev["kind"] in OUTCOME_KINDS and (ev["score"] is not None or ev["idk"])][-30:]
+        return sum(scores) / len(scores) if len(scores) >= 3 else 0.7
+
+    def _signal(self, kind: str, **fields: Any) -> int:
+        row = {"kind": kind, "ts": iso(now())}
+        row.update({k: v for k, v in fields.items() if v not in (None, {}, "")})
+        sid = self.store.add_signal(row)
+        self._write_learner_md()
+        return sid
+
+    def _known_elsewhere(self) -> list[dict]:
+        rows = self.store.all(
+            "SELECT c.slug, n.title, n.node_id, s.state FROM node_state s "
+            "JOIN nodes n ON n.course_id=s.course_id AND n.node_id=s.node_id "
+            "JOIN courses c ON c.id=s.course_id WHERE s.state IN ('learned','mastered','rusty') "
+            "ORDER BY c.id, n.node_id")
+        return [{"course": r["slug"], "node": r["node_id"], "title": r["title"], "state": r["state"]}
+                for r in rows]
+
+    def _model(self) -> dict:
+        return learner_model.build(self.store.signals(), now(), self._known_elsewhere())
+
+    def _write_learner_md(self) -> Path:
+        path = self.workspace / LEARNER_FILE
+        path.write_text(learner_model.to_markdown(self._model()), encoding="utf-8")
+        return path
+
+    def learner_signal(self, kind: str, dims: dict | None = None, valence: float | None = None,
+                       adjust: dict | None = None, target: str | None = None, note: str | None = None,
+                       course: str | None = None, node: str | None = None, weight: float = 1.0) -> dict:
+        if kind not in learner_model.SIGNAL_KINDS or kind == "outcome":
+            raise MentorError("kind must be fact, stated or reaction (outcomes come from evidence_record)")
+        try:
+            dims = learner_model.validate_dims(dims)
+            adjust = learner_model.validate_adjust(adjust)
+        except ValueError as exc:
+            raise MentorError(str(exc)) from exc
+        if kind == "fact" and not (note or "").strip():
+            raise MentorError("a fact needs note: what the learner said about themselves")
+        if kind != "fact" and not dims and not adjust:
+            raise MentorError("give dims (what it was about) and/or adjust (pace, depth, ...)")
+        if dims and valence is None:
+            raise MentorError("valence (-1 did not help .. 1 helped) is required with dims")
+        if valence is not None and not -1 <= float(valence) <= 1:
+            raise MentorError("valence must be between -1 and 1")
+        if not 0 < float(weight) <= 3:
+            raise MentorError("weight must be in (0, 3]")
+        course_id = self._course(course)["id"] if course else None
+        sid = self._signal(kind, course_id=course_id, node_id=node, dims=dims,
+                           valence=None if valence is None else float(valence), adjust=adjust,
+                           target=target, note=(note or "").strip(), weight=float(weight))
+        return {"signal_id": sid, "guidance": self._model()["guidance"],
+                "learner_md": str(self.workspace / LEARNER_FILE)}
+
+    def learner_signal_void(self, signal_id: int, reason: str) -> dict:
+        if not self.store.one("SELECT id FROM signals WHERE id=? AND voided=0", (signal_id,)):
+            raise MentorError(f"no active signal {signal_id}")
+        self.store.execute("UPDATE signals SET voided=1, note=COALESCE(note,'') || ? WHERE id=?",
+                           (f" [voided: {reason}]", signal_id))
+        self._write_learner_md()
+        return {"voided": signal_id, "guidance": self._model()["guidance"]}
+
+    def learner_reset(self, reason: str) -> dict:
+        """Forget the learner model (voids every signal; course knowledge is untouched)."""
+        n = self.store.execute("UPDATE signals SET voided=1, note=COALESCE(note,'') || ? WHERE voided=0",
+                               (f" [reset: {reason}]",)).rowcount
+        self._write_learner_md()
+        return {"voided": n}
+
+    def learner_model(self, detail: bool = False) -> dict:
+        """The learner model; without ``detail`` it is trimmed to what a lesson author needs.
+        With ``detail`` it includes the latest signals (ids for corrections)."""
+        model = self._model()
+        path = self._write_learner_md()
+        if detail:
+            model["signal_log"] = [
+                {k: s[k] for k in ("id", "ts", "kind", "target", "dims", "valence", "adjust", "note")}
+                for s in self.store.signals()[-100:][::-1]]
+        else:
+            model["unclear"] = model["unclear"][:5]
+            model["known_elsewhere"] = model["known_elsewhere"][:40]
+        return {**model, "learner_md": str(path)}
 
     # ------------------------------------------------------------------ tools
     def check_math(self, expr_a: str, expr_b: str, variables: list[str] | None = None) -> dict:

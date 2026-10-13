@@ -139,11 +139,13 @@ def evidence_record(course: str, node: str, kind: str, score: float | None = Non
                     hinted: bool = False, hint_level: int = 0, idk: bool = False,
                     confidence: int | None = None, misconceptions: list[str] | None = None,
                     grader_version: str | None = None, rationale: str | None = None,
-                    n_options: int | None = None) -> dict:
+                    n_options: int | None = None, taught_with: dict | None = None) -> dict:
     """Record a graded answer. kind=practice|quiz|review|explain|misconception|check|told.
+    taught_with: the explanation just used, e.g. {"angle": "geometric", "format": "diagram"}.
     Returns the engine's verdict: state, gate_missing, mastered, next_action."""
     return m().evidence_record(course, node, kind, score, item_id, form, bloom, hinted, hint_level,
-                               idk, confidence, None, misconceptions, grader_version, rationale, n_options)
+                               idk, confidence, None, misconceptions, grader_version, rationale, n_options,
+                               taught_with)
 
 
 @tool
@@ -174,9 +176,10 @@ def review_queue(course: str | None = None) -> list[dict]:
 # --- lessons & rendering -------------------------------------------------------
 @tool
 def lesson_save(course: str, node: str, lesson_md: str, pack: dict,
-                sources: list[dict] | None = None, title: str | None = None) -> dict:
-    """Save a lesson (visible markdown + hidden pack with items) and render its HTML."""
-    return m().lesson_save(course, node, lesson_md, pack, sources, title)
+                sources: list[dict] | None = None, title: str | None = None, render: str = "auto") -> dict:
+    """Save a lesson (visible markdown + hidden pack with items). render=auto writes HTML only
+    when the lesson has plots, boards, quizzes or explorables; always|never override."""
+    return m().lesson_save(course, node, lesson_md, pack, sources, title, render)
 
 
 @tool
@@ -191,6 +194,42 @@ def render_markdown(course: str, markdown: str, title: str, filename: str,
                     open_browser: bool = False) -> dict:
     """Render a reference page (cheat sheet, explainer) to reference/<filename>.html."""
     return m().render_markdown(course, markdown, title, filename, open_browser)
+
+
+@tool
+def explorable_save(course: str, node: str, name: str, html: str, question: str) -> dict:
+    """Validate and save a self-contained interactive page next to a lesson (VISUALS.md level 3)."""
+    return m().explorable_save(course, node, name, html, question)
+
+
+# --- learner model -------------------------------------------------------------
+@tool
+def learner_model(detail: bool = False) -> dict:
+    """Who the learner is (all courses): facts, what works/doesn't, pace/depth, interests,
+    known concepts, untested angles, and plain-language guidance. Read before teaching."""
+    return m().learner_model(detail)
+
+
+@tool
+def learner_signal(kind: str, dims: dict | None = None, valence: float | None = None,
+                   adjust: dict | None = None, target: str | None = None, note: str | None = None,
+                   course: str | None = None, node: str | None = None, weight: float = 1.0) -> dict:
+    """Record what the learner told us. kind=fact (note only) | stated (a preference) |
+    reaction (to something taught). dims: angle|format|abstraction|domain -> value;
+    valence -1..1 (hurt..helped); adjust: pace|depth|length|rigor|challenge -> -1|0|1."""
+    return m().learner_signal(kind, dims, valence, adjust, target, note, course, node, weight)
+
+
+@tool
+def learner_signal_void(signal_id: int, reason: str) -> dict:
+    """Retract a signal the learner says is wrong (ids: learner_model(detail=true).signal_log)."""
+    return m().learner_signal_void(signal_id, reason)
+
+
+@tool
+def learner_reset(reason: str) -> dict:
+    """Forget the whole learner model at the learner's request. Course progress is kept."""
+    return m().learner_reset(reason)
 
 
 # --- utilities -----------------------------------------------------------------

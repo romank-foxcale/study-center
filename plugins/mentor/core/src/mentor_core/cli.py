@@ -2,6 +2,7 @@
 
     mentor status [course]          mentor next [course]       mentor due
     mentor progress [course]        mentor rebuild-state       mentor validate-graph FILE
+    mentor me                       # the learner model (LEARNER.md)
     mentor call METHOD '{"json": "kwargs"}'   # any service method, e.g. evidence_record
     mentor call METHOD @kwargs.json           # same, kwargs read from a file
 """
@@ -35,6 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("course", nargs="?")
     sub.add_parser("list")
     sub.add_parser("due")
+    sub.add_parser("me")
     p = sub.add_parser("rebuild-state")
     p.add_argument("course", nargs="?")
     p = sub.add_parser("validate-graph")
@@ -60,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
             _print(mentor.course_list())
         elif args.cmd == "due":
             _print(mentor.review_queue())
+        elif args.cmd == "me":
+            _print(Path(mentor.learner_model()["learner_md"]).read_text(encoding="utf-8"))
         elif args.cmd == "rebuild-state":
             _print(mentor.rebuild_state(args.course))
         elif args.cmd == "call":

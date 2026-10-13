@@ -22,4 +22,6 @@ Global settings (`config` tool):
    `/reload-plugins` or a new session.
 3. Per-course preferences (depth 1-10, tone, communication mode, language, interests): update
    PROFILE.md via `profile_write(course, profile_md=...)`, keeping everything else intact.
-4. Tip: the optional Socratic output style can be enabled with `/output-style mentor`.
+4. How Mentor teaches *this person* across courses (angles, examples, pace) is learned from
+   feedback rather than configured: point them to `/mentor:me` to see or correct it.
+5. Tip: the optional Socratic output style can be enabled with `/output-style mentor`.

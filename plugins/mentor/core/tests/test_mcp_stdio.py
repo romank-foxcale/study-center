@@ -33,6 +33,12 @@ def test_stdio_server_lists_and_calls_tools(tmp_path, graph_yaml):
                                                                   "kind": "practice", "score": 1})
                 assert bad.is_error
                 assert "unknown node" in bad.content[0].text
+                sig = _text(await session.call_tool("learner_signal", {
+                    "kind": "reaction", "dims": {"angle": "geometric"}, "valence": 1,
+                    "note": "the picture helped", "course": slug}))
+                assert sig["signal_id"] == 1
+                model = _text(await session.call_tool("learner_model", {}))
+                assert model["recent_feedback"][0]["note"] == "the picture helped"
                 return tools
 
     tools = anyio.run(run)
